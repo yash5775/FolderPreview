@@ -33,6 +33,51 @@ class PreviewViewController: NSViewController, QLPreviewingController {
 
 }
 
+struct ZipMetadata: Hashable {
+    let localHeaderOffset: UInt64
+    let compressedSize: Int64
+    let uncompressedSize: Int64
+    let compressionMethod: UInt16 // 0 = Store, 8 = Deflate
+    let sourceZipURL: URL
+}
+
+struct FileItem: Identifiable, Hashable {
+    let id: URL
+    let url: URL
+    var children: [FileItem]?
+    var icon: NSImage? = nil // Cache for Zip items or specific icons
+    var zipMetadata: ZipMetadata? = nil // For extracting thumbnails
+    
+    let modificationDate: Date
+    let fileSize: Int64?
+    let kind: String
+    let isDirectory: Bool
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: FileItem, rhs: FileItem) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    var sizeForSorting: Int64 {
+        fileSize ?? 0
+    }
+    
+    var fileSizeString: String {
+        guard let size = fileSize else { return "--" }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+    
+    var dateString: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: modificationDate)
+    }
+}
+
 struct FolderPreviewView: View {
     let folderURL: URL
     
@@ -56,55 +101,12 @@ struct FolderPreviewView: View {
     @AppStorage("expandChildFolders", store: UserDefaults(suiteName: appGroup)) private var expandChildFolders: Bool = true
     @AppStorage("folderDepth", store: UserDefaults(suiteName: appGroup)) private var folderDepth: Int = 7
     
+
+
     @State private var items: [FileItem] = []
     @State private var sortOrder: [KeyPathComparator<FileItem>] = [
         .init(\.url.lastPathComponent, order: .forward)
     ]
-    
-    struct ZipMetadata: Hashable {
-        let localHeaderOffset: UInt64
-        let compressedSize: Int64
-        let uncompressedSize: Int64
-        let compressionMethod: UInt16 // 0 = Store, 8 = Deflate
-        let sourceZipURL: URL
-    }
-
-    struct FileItem: Identifiable, Hashable {
-        let id: URL
-        let url: URL
-        var children: [FileItem]?
-        var icon: NSImage? = nil // Cache for Zip items or specific icons
-        var zipMetadata: ZipMetadata? = nil // For extracting thumbnails
-        
-        let modificationDate: Date
-        let fileSize: Int64?
-        let kind: String
-        let isDirectory: Bool
-        
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(id)
-        }
-        
-        static func == (lhs: FileItem, rhs: FileItem) -> Bool {
-            lhs.id == rhs.id
-        }
-        
-        var sizeForSorting: Int64 {
-            fileSize ?? 0
-        }
-        
-        var fileSizeString: String {
-            guard let size = fileSize else { return "--" }
-            return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
-        }
-        
-        var dateString: String {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .short
-            return formatter.string(from: modificationDate)
-        }
-    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -273,7 +275,6 @@ struct FolderPreviewView: View {
             TableColumn("Name", value: \.url.lastPathComponent) { item in
                 HStack {
                     ThumbnailView(item: item)
-                        // Use rowHeightValue to scale the thumbnail in list view, min 16
                         .frame(width: max(16, rowHeightValue * 0.8), height: max(16, rowHeightValue * 0.8))
                     Text(item.url.lastPathComponent)
                 }
@@ -781,14 +782,14 @@ struct ThumbnailView: View {
                 // Inflate using Compression Framework
                 // Allocate buffer for uncompressed size
                 let destSize = Int(meta.uncompressedSize)
-                let maxSize = 50 * 1024 * 1024 // Cap at 50MB to prevent memory explosion
-                if destSize > maxSize { return nil } // Too big for preview
+                let maxSize = 50 * 1024 * 1024 // Cap at 50MB
+                if destSize > maxSize { return nil }
                 
                 var destBuffer = [UInt8](repeating: 0, count: destSize)
                 
-                let result = data.withUnsafeBytes { srcBuffer -> compression_status in
-                    return destBuffer.withUnsafeMutableBufferPointer { dstBuffer -> compression_status in
-                        return compression_decode_buffer(
+                let bytesWritten = data.withUnsafeBytes { srcBuffer -> Int in
+                    return destBuffer.withUnsafeMutableBufferPointer { dstBuffer -> Int in
+                         return compression_decode_buffer(
                             dstBuffer.baseAddress!,
                             destSize,
                             srcBuffer.baseAddress!.bindMemory(to: UInt8.self, capacity: data.count),
@@ -799,7 +800,7 @@ struct ThumbnailView: View {
                     }
                 }
                 
-                if result == COMPRESSION_STATUS_OK {
+                if bytesWritten == destSize {
                     uncompressedData = Data(destBuffer)
                 }
             }
