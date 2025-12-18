@@ -12,7 +12,7 @@ import SwiftUI
 struct ContentView: View {
     enum NavigationItem: String, CaseIterable, Identifiable {
         case home = "Home"
-        case settings = "Settings"
+        case settings = "Folder preview"
         case about = "About"
         
         var id: String { self.rawValue }
