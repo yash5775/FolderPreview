@@ -14,8 +14,51 @@ struct SettingsView: View {
     @AppStorage("expandChildFolders", store: UserDefaults(suiteName: appGroup)) private var expandChildFolders: Bool = true
     @AppStorage("folderDepth", store: UserDefaults(suiteName: appGroup)) private var folderDepth: Int = 7
     
+    @State private var isInstructionsExpanded: Bool = false
+    
     var body: some View {
         Form {
+            Section {
+                DisclosureGroup(isExpanded: $isInstructionsExpanded) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("How to Use the Extension?")
+                            .font(.headline)
+                        Text("Press spacebar or ⌘ + Y to quick look folders in Finder.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 5)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Enable Quick Look Extension")
+                            .font(.headline)
+                        
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                            Link("1. Open System Settings.", destination: url)
+                        } else {
+                            Text("1. Open System Settings.")
+                        }
+                        
+                        Text("2. Scroll down to the \"Extensions\" section and click the info button in \"Folder Preview\".")
+                        Text("3. Select \"Folder Preview\" extension.")
+                        Text("4. Select \"Archive Preview\" if you want to preview archive files like .zip, .7z, and .rar.")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 5)
+                } label: {
+                    Text("Instructions")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation {
+                                isInstructionsExpanded.toggle()
+                            }
+                        }
+                }
+            }
+            
             Section("Appearance") {
                 Picker("View", selection: $viewStyle) {
                     Text("as List").tag("list")
