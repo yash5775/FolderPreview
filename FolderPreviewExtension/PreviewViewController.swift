@@ -383,6 +383,31 @@ struct FolderPreviewView: View {
                 let filenameData = fileHandle.readData(ofLength: Int(filenameLen))
                 let filename = String(data: filenameData, encoding: .utf8) ?? "Unknown"
                 
+                // Read Date/Time (Offset 10, 12, 14, 16 in header? No, wait)
+                // Local File Header offsets:
+                // 0-3: Signature
+                // 4-5: Version
+                // 6-7: Flags
+                // 8-9: Compression Method
+                // 10-11: Last Mod Time
+                // 12-13: Last Mod Date
+                
+                // My headerData was read from CD entry.
+                // CD Entry offsets (relative to start of CD entry):
+                // 0-3: Signature
+                // ...
+                // 12-13: Last Mod Time
+                // 14-15: Last Mod Date
+                // headerData is 42 bytes long. Signature (4 bytes) was read separate.
+                // So headerData[0] corresponds to Offset 4 (Version made by).
+                // ...
+                // Offset 12 (Time) -> headerData index 12-4 = 8
+                // Offset 14 (Date) -> headerData index 14-4 = 10
+                
+                let timeData = headerData.subdata(in: 8..<10).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let dateData = headerData.subdata(in: 10..<12).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let modificationDate = parseMSDOSDate(time: timeData, date: dateData)
+                
                 // Skip Extra Field and Comment
                 try fileHandle.seek(toOffset: try fileHandle.offset() + UInt64(extraFieldLen) + UInt64(commentLen))
                 
@@ -393,19 +418,15 @@ struct FolderPreviewView: View {
                     let isDir = filename.hasSuffix("/")
                     // Construct dummy URL
                     let dummyURL = URL(fileURLWithPath: "/" + filename)
-                    let date = Date() // Parsing zip MS-DOS date is extra work, skipping for now
                     
-                    // Determine simplified Kind
+                    // Determine simplified Kind using UTType
                     var kind = isDir ? "Folder" : "ZIP Item"
                     if !isDir {
-                        if let type = try? NSWorkspace.shared.type(ofFile: dummyURL.path) {
-                           kind = NSWorkspace.shared.localizedDescription(forType: type) ?? "Document"
+                        let ext = dummyURL.pathExtension
+                        if let type = UTType(filenameExtension: ext) {
+                            kind = type.localizedDescription ?? type.identifier
                         } else {
-                            // Basic fallback based on extension
-                           let ext = dummyURL.pathExtension.lowercased()
-                           if !ext.isEmpty {
-                               kind = ext.uppercased() + " file"
-                           }
+                            kind = ext.isEmpty ? "Document" : "\(ext.uppercased()) file"
                         }
                     }
                     
@@ -413,7 +434,7 @@ struct FolderPreviewView: View {
                         id: dummyURL,
                         url: dummyURL,
                         children: nil,
-                        modificationDate: date,
+                        modificationDate: modificationDate,
                         fileSize: Int64(uncompressedSize),
                         kind: kind,
                         isDirectory: isDir
@@ -426,7 +447,38 @@ struct FolderPreviewView: View {
             print("Native Zip Parsing Failed: \(error)")
         }
         
-        return items
+        // Apply Sort
+        return sortItems(items)
+    }
+    
+    private func parseMSDOSDate(time: UInt16, date: UInt16) -> Date {
+        // MS-DOS Date:
+        // Bits 0-4: Day (1-31)
+        // Bits 5-8: Month (1-12)
+        // Bits 9-15: Year offset from 1980
+        
+        // MS-DOS Time:
+        // Bits 0-4: Seconds / 2
+        // Bits 5-10: Minutes (0-59)
+        // Bits 11-15: Hours (0-23)
+        
+        let day = Int(date & 0x1F)
+        let month = Int((date >> 5) & 0x0F)
+        let year = Int((date >> 9) & 0x7F) + 1980
+        
+        let seconds = Int(time & 0x1F) * 2
+        let minutes = Int((time >> 5) & 0x3F)
+        let hours = Int((time >> 11) & 0x1F)
+        
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hours
+        components.minute = minutes
+        components.second = seconds
+        
+        return Calendar.current.date(from: components) ?? Date()
     }
     
     // Legacy parser removed
