@@ -294,19 +294,148 @@ struct FolderPreviewView: View {
     @State private var totalFolderSize: Int64 = 0
     
     private func loadContents() {
-        items = fetchItems(at: folderURL, currentDepth: 1)
-        applySort()
+        // Reset state
+        self.items = []
         
-        // Asynchronously calculate deep size
-        DispatchQueue.global(qos: .utility).async {
-            let size = calculateDeepSize(at: folderURL)
-            DispatchQueue.main.async {
-                self.totalFolderSize = size
+        let isDir = (try? folderURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+        
+        if isDir {
+            items = fetchItems(at: folderURL, currentDepth: 1)
+            applySort()
+            
+            // Asynchronously calculate deep size
+            DispatchQueue.global(qos: .utility).async {
+                let size = calculateDeepSize(at: folderURL)
+                DispatchQueue.main.async {
+                    self.totalFolderSize = size
+                }
+            }
+        } else if folderURL.pathExtension.lowercased() == "zip" {
+            // Handle Zip File
+            DispatchQueue.global(qos: .userInitiated).async {
+                let zipItems = fetchZipItems(at: folderURL)
+                DispatchQueue.main.async {
+                    self.items = zipItems
+                    self.totalFolderSize = zipItems.reduce(0) { $0 + ($1.fileSize ?? 0) }
+                }
             }
         }
     }
     
+    private func fetchZipItems(at url: URL) -> [FileItem] {
+        var items: [FileItem] = []
+        
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: url)
+            defer { try? fileHandle.close() }
+            
+            let fileSize = try fileHandle.seekToEnd()
+            
+            // 1. Find End of Central Directory (EOCD) Record
+            // Scan backwards from end of file (up to 64KB comment max + 22 bytes header)
+            let searchLimit = min(fileSize, 65557)
+            try fileHandle.seek(toOffset: fileSize - searchLimit)
+            let footerData = fileHandle.readDataToEndOfFile()
+            
+            // EOCD Signature: 0x06054b50
+            guard let eocdRange = footerData.range(of: Data([0x50, 0x4b, 0x05, 0x06]), options: .backwards) else {
+                return []
+            }
+            
+            // Parse EOCD to find Central Directory Offset
+            // Offset 16 (4 bytes): Offset of start of central directory with respect to the starting disk number
+            let eocdStart = eocdRange.lowerBound
+            // Check boundaries
+            if eocdStart + 20 > footerData.count { return [] }
+            
+            // Extract CD Offset
+            let cdOffsetData = footerData.subdata(in: eocdStart + 16 ..< eocdStart + 20)
+            let cdOffset = cdOffsetData.withUnsafeBytes { $0.load(as: UInt32.self) }
+            
+            // Offset 10 (2 bytes): Total number of entries in the central directory on this disk
+            let cdCountData = footerData.subdata(in: eocdStart + 10 ..< eocdStart + 12)
+            let cdCount = cdCountData.withUnsafeBytes { $0.load(as: UInt16.self) }
+            
+            // 2. Read Central Directory
+            try fileHandle.seek(toOffset: UInt64(cdOffset))
+            
+            for _ in 0..<cdCount {
+                // Signature: 0x02014b50 (4 bytes)
+                let signatureData = fileHandle.readData(ofLength: 4)
+                if signatureData != Data([0x50, 0x4b, 0x01, 0x02]) { break }
+                
+                // We need to read fixed size header (46 bytes)
+                // Already read 4, need 42 more
+                let headerData = fileHandle.readData(ofLength: 42)
+                
+                // Compressed Size (Offset 20-4 = 16) -> 4 bytes
+                // Uncompressed Size (Offset 24-4 = 20) -> 4 bytes
+                // Filename Length (Offset 28-4 = 24) -> 2 bytes
+                // Extra Field Length (Offset 30-4 = 26) -> 2 bytes
+                // File Comment Length (Offset 32-4 = 28) -> 2 bytes
+                
+                let uncompressedSize = headerData.subdata(in: 20..<24).withUnsafeBytes { $0.load(as: UInt32.self) }
+                let filenameLen = headerData.subdata(in: 24..<26).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let extraFieldLen = headerData.subdata(in: 26..<28).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let commentLen = headerData.subdata(in: 28..<30).withUnsafeBytes { $0.load(as: UInt16.self) }
+                
+                // Read Filename
+                let filenameData = fileHandle.readData(ofLength: Int(filenameLen))
+                let filename = String(data: filenameData, encoding: .utf8) ?? "Unknown"
+                
+                // Skip Extra Field and Comment
+                try fileHandle.seek(toOffset: try fileHandle.offset() + UInt64(extraFieldLen) + UInt64(commentLen))
+                
+                // Process Item
+                // Filter out __MACOSX folder and ._ files (resource forks)
+                if !filename.contains("__MACOSX") && !filename.lowercased().hasPrefix("._") && !filename.components(separatedBy: "/").contains(where: { $0.hasPrefix("._") }) {
+                    
+                    let isDir = filename.hasSuffix("/")
+                    // Construct dummy URL
+                    let dummyURL = URL(fileURLWithPath: "/" + filename)
+                    let date = Date() // Parsing zip MS-DOS date is extra work, skipping for now
+                    
+                    // Determine simplified Kind
+                    var kind = isDir ? "Folder" : "ZIP Item"
+                    if !isDir {
+                        if let type = try? NSWorkspace.shared.type(ofFile: dummyURL.path) {
+                           kind = NSWorkspace.shared.localizedDescription(forType: type) ?? "Document"
+                        } else {
+                            // Basic fallback based on extension
+                           let ext = dummyURL.pathExtension.lowercased()
+                           if !ext.isEmpty {
+                               kind = ext.uppercased() + " file"
+                           }
+                        }
+                    }
+                    
+                    let item = FileItem(
+                        id: dummyURL,
+                        url: dummyURL,
+                        children: nil,
+                        modificationDate: date,
+                        fileSize: Int64(uncompressedSize),
+                        kind: kind,
+                        isDirectory: isDir
+                    )
+                    items.append(item)
+                }
+            }
+            
+        } catch {
+            print("Native Zip Parsing Failed: \(error)")
+        }
+        
+        return items
+    }
+    
+    // Legacy parser removed
+    private func parseZipOutput(_ output: String) -> [FileItem] {
+        return []
+    }
+    
     private func calculateDeepSize(at url: URL) -> Int64 {
+        // ... existing implementation
         guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: [], errorHandler: nil) else { return 0 }
         
         var total: Int64 = 0
