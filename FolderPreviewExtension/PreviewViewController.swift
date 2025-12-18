@@ -3,6 +3,7 @@ import Cocoa
 import Quartz
 import SwiftUI
 import UniformTypeIdentifiers
+import Compression
 
 class PreviewViewController: NSViewController, QLPreviewingController {
 
@@ -60,20 +61,38 @@ struct FolderPreviewView: View {
         .init(\.url.lastPathComponent, order: .forward)
     ]
     
+    struct ZipMetadata: Hashable {
+        let localHeaderOffset: UInt64
+        let compressedSize: Int64
+        let uncompressedSize: Int64
+        let compressionMethod: UInt16 // 0 = Store, 8 = Deflate
+        let sourceZipURL: URL
+    }
+
     struct FileItem: Identifiable, Hashable {
         let id: URL
         let url: URL
         var children: [FileItem]?
+        var icon: NSImage? = nil // Cache for Zip items or specific icons
+        var zipMetadata: ZipMetadata? = nil // For extracting thumbnails
         
         let modificationDate: Date
         let fileSize: Int64?
         let kind: String
         let isDirectory: Bool
         
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(id)
+        }
+        
+        static func == (lhs: FileItem, rhs: FileItem) -> Bool {
+            lhs.id == rhs.id
+        }
+        
         var sizeForSorting: Int64 {
             fileSize ?? 0
         }
-
+        
         var fileSizeString: String {
             guard let size = fileSize else { return "--" }
             return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
@@ -229,7 +248,7 @@ struct FolderPreviewView: View {
              LazyVGrid(columns: [GridItem(.adaptive(minimum: rowHeightValue * 2))], spacing: 20) {
                 ForEach(items, id: \.self) { item in
                     VStack {
-                        ThumbnailView(url: item.url)
+                        ThumbnailView(item: item)
                             .frame(width: rowHeightValue * 1.5, height: rowHeightValue * 1.5)
                         Text(item.url.lastPathComponent)
                             .font(.caption)
@@ -253,7 +272,7 @@ struct FolderPreviewView: View {
         Table(items, children: \.children, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.url.lastPathComponent) { item in
                 HStack {
-                    ThumbnailView(url: item.url)
+                    ThumbnailView(item: item)
                         // Use rowHeightValue to scale the thumbnail in list view, min 16
                         .frame(width: max(16, rowHeightValue * 0.8), height: max(16, rowHeightValue * 0.8))
                     Text(item.url.lastPathComponent)
@@ -324,7 +343,7 @@ struct FolderPreviewView: View {
     }
     
     private func fetchZipItems(at url: URL) -> [FileItem] {
-        var entries: [(path: String, isDir: Bool, date: Date, size: Int64)] = []
+        var entries: [(path: String, isDir: Bool, date: Date, size: Int64, zipMeta: ZipMetadata?)] = []
         
         do {
             let fileHandle = try FileHandle(forReadingFrom: url)
@@ -351,17 +370,33 @@ struct FolderPreviewView: View {
                 if signatureData != Data([0x50, 0x4b, 0x01, 0x02]) { break }
                 let headerData = fileHandle.readData(ofLength: 42)
                 
-                let uncompressedSize = headerData.subdata(in: 20..<24).withUnsafeBytes { $0.load(as: UInt32.self) }
-                let filenameLen = headerData.subdata(in: 24..<26).withUnsafeBytes { $0.load(as: UInt16.self) }
-                let extraFieldLen = headerData.subdata(in: 26..<28).withUnsafeBytes { $0.load(as: UInt16.self) }
-                let commentLen = headerData.subdata(in: 28..<30).withUnsafeBytes { $0.load(as: UInt16.self) }
+                // CD Offsets:
+                // 10-11: Compression Method
+                // 12-13: Last Mod Time
+                // 14-15: Last Mod Date
+                // 20-23: Compressed Size
+                // 24-27: Uncompressed Size
+                // 28-29: Filename Len
+                // 30-31: Extra Field Len
+                // 32-33: File Comment Len
+                // 42-45: Relative Offset of Local Header
+                
+                // headerData[0] is Byte 4 (Version Made By) relative to Signature (0-3).
+                // So Subtract 4 from absolute offsets.
+                
+                let compressionMethod = headerData.subdata(in: 10-4..<12-4).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let timeData = headerData.subdata(in: 12-4..<14-4).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let dateData = headerData.subdata(in: 14-4..<16-4).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let compressedSize = headerData.subdata(in: 20-4..<24-4).withUnsafeBytes { $0.load(as: UInt32.self) }
+                let uncompressedSize = headerData.subdata(in: 24-4..<28-4).withUnsafeBytes { $0.load(as: UInt32.self) }
+                let filenameLen = headerData.subdata(in: 28-4..<30-4).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let extraFieldLen = headerData.subdata(in: 30-4..<32-4).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let commentLen = headerData.subdata(in: 32-4..<34-4).withUnsafeBytes { $0.load(as: UInt16.self) }
+                let localHeaderOffset = headerData.subdata(in: 42-4..<46-4).withUnsafeBytes { $0.load(as: UInt32.self) }
                 
                 let filenameData = fileHandle.readData(ofLength: Int(filenameLen))
                 let filename = String(data: filenameData, encoding: .utf8) ?? "Unknown"
                 
-                // Read Date
-                let timeData = headerData.subdata(in: 8..<10).withUnsafeBytes { $0.load(as: UInt16.self) }
-                let dateData = headerData.subdata(in: 10..<12).withUnsafeBytes { $0.load(as: UInt16.self) }
                 let date = parseMSDOSDate(time: timeData, date: dateData)
                 
                 try fileHandle.seek(toOffset: try fileHandle.offset() + UInt64(extraFieldLen) + UInt64(commentLen))
@@ -369,9 +404,18 @@ struct FolderPreviewView: View {
                 // Filter Junk
                 if !filename.contains("__MACOSX") && !filename.hasPrefix(".") && !filename.contains("/.") {
                     let isDir = filename.hasSuffix("/")
-                    // Clean path: remove trailing slash for logic
+                    // Clean path: remove trailing slash
                     let cleanPath = isDir ? String(filename.dropLast()) : filename
-                    entries.append((cleanPath, isDir, date, Int64(uncompressedSize)))
+                    
+                    let meta = ZipMetadata(
+                        localHeaderOffset: UInt64(localHeaderOffset),
+                        compressedSize: Int64(compressedSize),
+                        uncompressedSize: Int64(uncompressedSize),
+                        compressionMethod: compressionMethod,
+                        sourceZipURL: url
+                    )
+                    
+                    entries.append((cleanPath, isDir, date, Int64(uncompressedSize), meta))
                 }
             }
         } catch {
@@ -380,7 +424,7 @@ struct FolderPreviewView: View {
         
         let rootItems = buildTree(from: entries)
         
-        // Smart Unwrapping: If only one root folder, show its contents to match Finder behavior
+        // Smart Unwrapping
         if rootItems.count == 1, let root = rootItems.first, root.isDirectory, let children = root.children {
             return children
         }
@@ -388,13 +432,14 @@ struct FolderPreviewView: View {
         return rootItems
     }
     
-    private func buildTree(from entries: [(path: String, isDir: Bool, date: Date, size: Int64)]) -> [FileItem] {
+    private func buildTree(from entries: [(path: String, isDir: Bool, date: Date, size: Int64, zipMeta: ZipMetadata?)]) -> [FileItem] {
         class Node {
             var name: String
             var children: [String: Node] = [:]
             var isDir: Bool = true
             var date: Date = Date()
             var size: Int64 = 0
+            var zipMeta: ZipMetadata? = nil
             
             init(name: String) { self.name = name }
             
@@ -412,12 +457,18 @@ struct FolderPreviewView: View {
             func toFileItem(fullPath: String) -> FileItem {
                 let dummyURL = URL(fileURLWithPath: fullPath.isEmpty ? "/" : "/" + fullPath)
                 var kind = isDir ? "Folder" : "ZIP Item"
+                var icon: NSImage? = nil
+                
                 if !isDir {
                    if let type = UTType(filenameExtension: dummyURL.pathExtension) {
                        kind = type.localizedDescription ?? type.identifier
+                       icon = NSWorkspace.shared.icon(for: type)
                    } else {
                         kind = dummyURL.pathExtension.isEmpty ? "Document" : "\(dummyURL.pathExtension.uppercased()) file"
+                        icon = NSWorkspace.shared.icon(for: .data)
                    }
+                } else {
+                    icon = NSWorkspace.shared.icon(for: .folder)
                 }
                 
                 let childItems = children.isEmpty && !isDir ? nil : children.values.map { $0.toFileItem(fullPath: (fullPath.isEmpty ? "" : fullPath + "/") + $0.name) }
@@ -428,6 +479,8 @@ struct FolderPreviewView: View {
                     id: dummyURL,
                     url: dummyURL,
                     children: sortedChildren,
+                    icon: icon,
+                    zipMetadata: zipMeta,
                     modificationDate: date,
                     fileSize: size,
                     kind: kind,
@@ -452,6 +505,7 @@ struct FolderPreviewView: View {
                     current.isDir = entry.isDir
                     current.date = entry.date
                     current.size = entry.size
+                    current.zipMeta = entry.zipMeta
                 }
             }
         }
@@ -601,6 +655,7 @@ struct FolderPreviewView: View {
                     id: fileURL,
                     url: fileURL,
                     children: children,
+                    icon: nil, // Let ThumbnailView load system icon/preview
                     modificationDate: date,
                     fileSize: size,
                     kind: kind,
@@ -615,9 +670,10 @@ struct FolderPreviewView: View {
 }
 
 import QuickLookThumbnailing
+import Compression
 
 struct ThumbnailView: View {
-    let url: URL
+    let item: FileItem
     @State private var image: NSImage?
     
     var body: some View {
@@ -626,8 +682,12 @@ struct ThumbnailView: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+            } else if let explicitIcon = item.icon {
+                Image(nsImage: explicitIcon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
             } else {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
                     .resizable()
                     .aspectRatio(contentMode: .fit)
             }
@@ -638,19 +698,40 @@ struct ThumbnailView: View {
     }
     
     private func loadThumbnail() {
-        // 1. Try direct loading for common image types (faster/simpler if sandbox allows)
-        let imageExtensions = ["png", "jpg", "jpeg", "tiff", "gif", "bmp", "ico", "icns"]
-        if imageExtensions.contains(url.pathExtension.lowercased()) {
-            // Run on background to avoid blocking main thread
+        // New Zip Logic
+        if let meta = item.zipMetadata {
+            // If it's an image type, try to extract and load
+            // Only try for common image extensions to avoid waste
+            let ext = item.url.pathExtension.lowercased()
+            let imageExts: Set<String> = ["png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "heic", "webp"]
+            
+            if imageExts.contains(ext) {
+                 DispatchQueue.global(qos: .userInitiated).async {
+                     if let img = extractZipImage(meta: meta) {
+                         DispatchQueue.main.async {
+                             self.image = img
+                         }
+                     }
+                 }
+            }
+            return
+        }
+        
+        // Existing logic for normal files
+        if let icon = item.icon {
+            // We have an explicit icon (maybe system default).
+            // If it looks like an image, we still want QL to try generating a thumbnail 
+            // because system icon is just a generic PNG file icon.
+        }
+        // ... (rest of existing QL/path logic)
+        let imageExtensions = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "heic", "webp", "svg", "pdf"]
+        if imageExtensions.contains(item.url.pathExtension.lowercased()) {
             DispatchQueue.global(qos: .userInitiated).async {
-                if let directImage = NSImage(contentsOf: url) {
-                    DispatchQueue.main.async {
-                        self.image = directImage
-                    }
-                    return
+                if let directImage = NSImage(contentsOf: item.url) {
+                     DispatchQueue.main.async { self.image = directImage }
+                     return
                 }
-                // If direct load fails, fall through to QL
-                self.generateQLThumbnail()
+                generateQLThumbnail()
             }
         } else {
             generateQLThumbnail()
@@ -659,17 +740,77 @@ struct ThumbnailView: View {
     
     private func generateQLThumbnail() {
         let size = CGSize(width: 128, height: 128)
-        let scale = 2.0 // Default to 2.0 if screen is ni
-        let request = QLThumbnailGenerator.Request(fileAt: url, size: size, scale: scale, representationTypes: .thumbnail)
+        let scale = 2.0
+        let request = QLThumbnailGenerator.Request(fileAt: item.url, size: size, scale: scale, representationTypes: .thumbnail)
         
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { (thumbnail, error) in
             if let thumbnail = thumbnail {
                 DispatchQueue.main.async {
                     self.image = thumbnail.nsImage
                 }
-            } else if let error = error {
-                print("Thumbnail generation error: \(error)")
             }
         }
+    }
+    
+    private func extractZipImage(meta: ZipMetadata) -> NSImage? {
+        guard let fileHandle = try? FileHandle(forReadingFrom: meta.sourceZipURL) else { return nil }
+        defer { try? fileHandle.close() }
+        
+        do {
+            // Go to Local Header
+            try fileHandle.seek(toOffset: meta.localHeaderOffset)
+            // Read Local Header (fixed 30 bytes + filename + extra)
+            let headerData = fileHandle.readData(ofLength: 30)
+            if headerData.count < 30 { return nil }
+            
+            let fileNameLen = headerData.subdata(in: 26..<28).withUnsafeBytes { $0.load(as: UInt16.self) }
+            let extraFieldLen = headerData.subdata(in: 28..<30).withUnsafeBytes { $0.load(as: UInt16.self) }
+            
+            // Skip filename and extra field to get to data
+            try fileHandle.seek(toOffset: try fileHandle.offset() + UInt64(fileNameLen) + UInt64(extraFieldLen))
+            
+            // Read Compressed Data
+            let data = fileHandle.readData(ofLength: Int(meta.compressedSize))
+            if data.count != Int(meta.compressedSize) { return nil }
+            
+            var uncompressedData: Data? = nil
+            
+            if meta.compressionMethod == 0 { // Store
+                uncompressedData = data
+            } else if meta.compressionMethod == 8 { // Deflate
+                // Inflate using Compression Framework
+                // Allocate buffer for uncompressed size
+                let destSize = Int(meta.uncompressedSize)
+                let maxSize = 50 * 1024 * 1024 // Cap at 50MB to prevent memory explosion
+                if destSize > maxSize { return nil } // Too big for preview
+                
+                var destBuffer = [UInt8](repeating: 0, count: destSize)
+                
+                let result = data.withUnsafeBytes { srcBuffer -> compression_status in
+                    return destBuffer.withUnsafeMutableBufferPointer { dstBuffer -> compression_status in
+                        return compression_decode_buffer(
+                            dstBuffer.baseAddress!,
+                            destSize,
+                            srcBuffer.baseAddress!.bindMemory(to: UInt8.self, capacity: data.count),
+                            data.count,
+                            nil,
+                            COMPRESSION_ZLIB
+                        )
+                    }
+                }
+                
+                if result == COMPRESSION_STATUS_OK {
+                    uncompressedData = Data(destBuffer)
+                }
+            }
+            
+            if let uData = uncompressedData {
+                return NSImage(data: uData)
+            }
+            
+        } catch {
+            print("Extraction failed: \(error)")
+        }
+        return nil
     }
 }
