@@ -576,7 +576,7 @@ struct FolderPreviewView: View {
     
     private func calculateDeepSize(at url: URL) -> Int64 {
         // ... existing implementation
-        guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: [], errorHandler: nil) else { return 0 }
+        guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsPackageDescendants, .skipsHiddenFiles], errorHandler: nil) else { return 0 }
         
         var total: Int64 = 0
         for case let fileURL as URL in enumerator {
@@ -643,7 +643,7 @@ struct FolderPreviewView: View {
                 options.insert(.skipsHiddenFiles)
             }
             
-            let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey, .localizedTypeDescriptionKey]
+            let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isPackageKey, .contentModificationDateKey, .fileSizeKey, .localizedTypeDescriptionKey]
             
             let contents = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: resourceKeys, options: options)
             
@@ -651,11 +651,22 @@ struct FolderPreviewView: View {
                 guard let values = try? fileURL.resourceValues(forKeys: Set(resourceKeys)) else { return nil }
                 
                 let isDir = values.isDirectory ?? false
+                let isPackage = values.isPackage ?? false
+                let treatAsDir = isDir && !isPackage
+                
                 let date = values.contentModificationDate ?? Date()
                 var size = values.fileSize.map { Int64($0) }
-                let kind = values.localizedTypeDescription ?? (isDir ? "Folder" : "File")
+                // If it's a package, it might have a fileSize (sometimes 0 for bundles, need deep calc if we want accurate size, but strictly treating as file for speed is safer for now. actually packages usually have no file size returned by default resource key, it's 0. Deep calc for ALL apps is slow. Let's start with 0 or nil? Finder shows size for apps. calculateDeepSize handles packages? No, we skip descendants. )
+                // For performance in /Applications, let's NOT deep calc individual apps automatically if they are top level, OR keep deep calc but skip package descendants (which means we won't get size? no, skip PREVENTS entering, but we want size... Finder calculates it.)
+                // Actually, enumerator(.isPackageDescendants) means it treats package as a file.
+                // Let's rely on standard logic: if treatAsDir is FALSE, we don't calculate deep size.
+                // But Wait, Finder shows size for Apps.
+                // If we treat it as a file, `values.fileSize` is usually nil or small for directories.
+                // Let's stick to "Safety First": Treat as file, showing -- size if needed, to prevent the hang.
                 
-                if isDir {
+                let kind = values.localizedTypeDescription ?? (treatAsDir ? "Folder" : "File")
+                
+                if treatAsDir {
                     // Start with 0 for folders initially found
                     // Note: Calculating recursive size for EVERY folder in the view synchronously 
                     // is very expensive. For a smoother experience, we might want to do this async.
@@ -666,7 +677,7 @@ struct FolderPreviewView: View {
                 var children: [FileItem]? = nil
                  // Check depth limit
                  let maxDepth = limitFolderDepth ? folderDepth : Int.max
-                 if isDir && currentDepth < maxDepth {
+                 if treatAsDir && currentDepth < maxDepth {
                     let childItems = fetchItems(at: fileURL, currentDepth: currentDepth + 1)
                     // Apply sort to children immediately
                     children = sortItems(childItems)
@@ -680,7 +691,7 @@ struct FolderPreviewView: View {
                     modificationDate: date,
                     fileSize: size,
                     kind: kind,
-                    isDirectory: isDir
+                    isDirectory: treatAsDir
                 )
             }
         } catch {
