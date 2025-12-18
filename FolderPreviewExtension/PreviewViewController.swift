@@ -455,7 +455,7 @@ struct FolderPreviewView: View {
                 return total
             }
             
-            func toFileItem(fullPath: String) -> FileItem {
+            func toFileItem(fullPath: String, currentDepth: Int, maxDepth: Int) -> FileItem {
                 let dummyURL = URL(fileURLWithPath: fullPath.isEmpty ? "/" : "/" + fullPath)
                 var kind = isDir ? "Folder" : "ZIP Item"
                 var icon: NSImage? = nil
@@ -472,8 +472,16 @@ struct FolderPreviewView: View {
                     icon = NSWorkspace.shared.icon(for: .folder)
                 }
                 
-                let childItems = children.isEmpty && !isDir ? nil : children.values.map { $0.toFileItem(fullPath: (fullPath.isEmpty ? "" : fullPath + "/") + $0.name) }
-                // Sort children
+                // Recursion Limit check
+                var childItems: [FileItem]? = nil
+                if !children.isEmpty || isDir {
+                    if currentDepth <= maxDepth {
+                         childItems = children.values.map { $0.toFileItem(fullPath: (fullPath.isEmpty ? "" : fullPath + "/") + $0.name, currentDepth: currentDepth + 1, maxDepth: maxDepth) }
+                         // We will sort childItems in the caller or here? 
+                         // Logic below sorts children.
+                    }
+                }
+                
                 let sortedChildren = childItems?.sorted(using: [KeyPathComparator(\.url.lastPathComponent)])
                 
                 return FileItem(
@@ -516,8 +524,16 @@ struct FolderPreviewView: View {
             _ = child.calculateTotalSize()
         }
         
-        // Convert to Items
-        let items = root.children.values.map { $0.toFileItem(fullPath: $0.name) }
+        // Adjust depth for Smart Unwrapping
+        // If there is exactly one root folder, the viewer will unwrap it (remove it),
+        // effectively reducing the visible depth by 1. We compensate by increasing the limit.
+        var effectiveMaxDepth = folderDepth
+        if root.children.count == 1, let singleChild = root.children.values.first, singleChild.isDir {
+            effectiveMaxDepth += 1
+        }
+        
+        // Convert to Items, starting at depth 1
+        let items = root.children.values.map { $0.toFileItem(fullPath: $0.name, currentDepth: 1, maxDepth: effectiveMaxDepth) }
         return sortItems(items)
     }
     
