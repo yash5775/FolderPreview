@@ -17,6 +17,19 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     }
 
     func preparePreviewOfFile(at url: URL) async throws {
+        // Check if user has disabled the extension via Settings
+        let appGroup = "group.com.example.FolderPreview"
+        if let defaults = UserDefaults(suiteName: appGroup) {
+            // Default to true if not set
+            let isEnabled = defaults.object(forKey: "isExtensionEnabled") as? Bool ?? true
+            if !isEnabled {
+                // User disabled the extension.
+                // We throw an error to tell Quick Look we cannot handle this request.
+                // This should trigger the system to fall back to the default preview (Folder Icon).
+                throw NSError(domain: "com.example.FolderPreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Extension Disabled"])
+            }
+        }
+
         let hostingController = NSHostingController(rootView: FolderPreviewView(folderURL: url))
         
         addChild(hostingController)
@@ -101,9 +114,8 @@ struct FolderPreviewView: View {
     @AppStorage("expandChildFolders", store: UserDefaults(suiteName: appGroup)) private var expandChildFolders: Bool = true
     @AppStorage("limitFolderDepth", store: UserDefaults(suiteName: appGroup)) private var limitFolderDepth: Bool = true
     @AppStorage("folderDepth", store: UserDefaults(suiteName: appGroup)) private var folderDepth: Int = 7
+    @AppStorage("isExtensionEnabled", store: UserDefaults(suiteName: appGroup)) private var isExtensionEnabled: Bool = true
     
-
-
     @State private var items: [FileItem] = []
     @State private var sortOrder: [KeyPathComparator<FileItem>] = [
         .init(\.url.lastPathComponent, order: .forward)
@@ -129,6 +141,7 @@ struct FolderPreviewView: View {
             loadContents() 
         }
         .onChange(of: folderDepth) { _, _ in loadContents() }
+        .onChange(of: limitFolderDepth) { _, _ in loadContents() }
         .onChange(of: sortOrder) { _, _ in
             applySort()
         }

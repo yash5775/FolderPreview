@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("expandChildFolders", store: UserDefaults(suiteName: appGroup)) private var expandChildFolders: Bool = true
     @AppStorage("limitFolderDepth", store: UserDefaults(suiteName: appGroup)) private var limitFolderDepth: Bool = true
     @AppStorage("folderDepth", store: UserDefaults(suiteName: appGroup)) private var folderDepth: Int = 7
+    @AppStorage("isExtensionEnabled", store: UserDefaults(suiteName: appGroup)) private var isExtensionEnabled: Bool = true
     
     @State private var isInstructionsExpanded: Bool = false
     
@@ -58,6 +59,10 @@ struct SettingsView: View {
                             }
                         }
                 }
+            }
+            
+            Section("General") {
+                Toggle("Enable Folder Preview", isOn: $isExtensionEnabled)
             }
             
             Section("Appearance") {
