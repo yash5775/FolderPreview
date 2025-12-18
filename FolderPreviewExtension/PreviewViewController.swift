@@ -324,131 +324,145 @@ struct FolderPreviewView: View {
     }
     
     private func fetchZipItems(at url: URL) -> [FileItem] {
-        var items: [FileItem] = []
+        var entries: [(path: String, isDir: Bool, date: Date, size: Int64)] = []
         
         do {
             let fileHandle = try FileHandle(forReadingFrom: url)
             defer { try? fileHandle.close() }
             
             let fileSize = try fileHandle.seekToEnd()
-            
-            // 1. Find End of Central Directory (EOCD) Record
-            // Scan backwards from end of file (up to 64KB comment max + 22 bytes header)
             let searchLimit = min(fileSize, 65557)
             try fileHandle.seek(toOffset: fileSize - searchLimit)
             let footerData = fileHandle.readDataToEndOfFile()
             
-            // EOCD Signature: 0x06054b50
-            guard let eocdRange = footerData.range(of: Data([0x50, 0x4b, 0x05, 0x06]), options: .backwards) else {
-                return []
-            }
-            
-            // Parse EOCD to find Central Directory Offset
-            // Offset 16 (4 bytes): Offset of start of central directory with respect to the starting disk number
+            guard let eocdRange = footerData.range(of: Data([0x50, 0x4b, 0x05, 0x06]), options: .backwards) else { return [] }
             let eocdStart = eocdRange.lowerBound
-            // Check boundaries
             if eocdStart + 20 > footerData.count { return [] }
             
-            // Extract CD Offset
             let cdOffsetData = footerData.subdata(in: eocdStart + 16 ..< eocdStart + 20)
             let cdOffset = cdOffsetData.withUnsafeBytes { $0.load(as: UInt32.self) }
-            
-            // Offset 10 (2 bytes): Total number of entries in the central directory on this disk
             let cdCountData = footerData.subdata(in: eocdStart + 10 ..< eocdStart + 12)
             let cdCount = cdCountData.withUnsafeBytes { $0.load(as: UInt16.self) }
             
-            // 2. Read Central Directory
             try fileHandle.seek(toOffset: UInt64(cdOffset))
             
             for _ in 0..<cdCount {
-                // Signature: 0x02014b50 (4 bytes)
                 let signatureData = fileHandle.readData(ofLength: 4)
                 if signatureData != Data([0x50, 0x4b, 0x01, 0x02]) { break }
-                
-                // We need to read fixed size header (46 bytes)
-                // Already read 4, need 42 more
                 let headerData = fileHandle.readData(ofLength: 42)
-                
-                // Compressed Size (Offset 20-4 = 16) -> 4 bytes
-                // Uncompressed Size (Offset 24-4 = 20) -> 4 bytes
-                // Filename Length (Offset 28-4 = 24) -> 2 bytes
-                // Extra Field Length (Offset 30-4 = 26) -> 2 bytes
-                // File Comment Length (Offset 32-4 = 28) -> 2 bytes
                 
                 let uncompressedSize = headerData.subdata(in: 20..<24).withUnsafeBytes { $0.load(as: UInt32.self) }
                 let filenameLen = headerData.subdata(in: 24..<26).withUnsafeBytes { $0.load(as: UInt16.self) }
                 let extraFieldLen = headerData.subdata(in: 26..<28).withUnsafeBytes { $0.load(as: UInt16.self) }
                 let commentLen = headerData.subdata(in: 28..<30).withUnsafeBytes { $0.load(as: UInt16.self) }
                 
-                // Read Filename
                 let filenameData = fileHandle.readData(ofLength: Int(filenameLen))
                 let filename = String(data: filenameData, encoding: .utf8) ?? "Unknown"
                 
-                // Read Date/Time (Offset 10, 12, 14, 16 in header? No, wait)
-                // Local File Header offsets:
-                // 0-3: Signature
-                // 4-5: Version
-                // 6-7: Flags
-                // 8-9: Compression Method
-                // 10-11: Last Mod Time
-                // 12-13: Last Mod Date
-                
-                // My headerData was read from CD entry.
-                // CD Entry offsets (relative to start of CD entry):
-                // 0-3: Signature
-                // ...
-                // 12-13: Last Mod Time
-                // 14-15: Last Mod Date
-                // headerData is 42 bytes long. Signature (4 bytes) was read separate.
-                // So headerData[0] corresponds to Offset 4 (Version made by).
-                // ...
-                // Offset 12 (Time) -> headerData index 12-4 = 8
-                // Offset 14 (Date) -> headerData index 14-4 = 10
-                
+                // Read Date
                 let timeData = headerData.subdata(in: 8..<10).withUnsafeBytes { $0.load(as: UInt16.self) }
                 let dateData = headerData.subdata(in: 10..<12).withUnsafeBytes { $0.load(as: UInt16.self) }
-                let modificationDate = parseMSDOSDate(time: timeData, date: dateData)
+                let date = parseMSDOSDate(time: timeData, date: dateData)
                 
-                // Skip Extra Field and Comment
                 try fileHandle.seek(toOffset: try fileHandle.offset() + UInt64(extraFieldLen) + UInt64(commentLen))
                 
-                // Process Item
-                // Filter out __MACOSX folder and ._ files (resource forks)
-                if !filename.contains("__MACOSX") && !filename.lowercased().hasPrefix("._") && !filename.components(separatedBy: "/").contains(where: { $0.hasPrefix("._") }) {
-                    
+                // Filter Junk
+                if !filename.contains("__MACOSX") && !filename.hasPrefix(".") && !filename.contains("/.") {
                     let isDir = filename.hasSuffix("/")
-                    // Construct dummy URL
-                    let dummyURL = URL(fileURLWithPath: "/" + filename)
-                    
-                    // Determine simplified Kind using UTType
-                    var kind = isDir ? "Folder" : "ZIP Item"
-                    if !isDir {
-                        let ext = dummyURL.pathExtension
-                        if let type = UTType(filenameExtension: ext) {
-                            kind = type.localizedDescription ?? type.identifier
-                        } else {
-                            kind = ext.isEmpty ? "Document" : "\(ext.uppercased()) file"
-                        }
-                    }
-                    
-                    let item = FileItem(
-                        id: dummyURL,
-                        url: dummyURL,
-                        children: nil,
-                        modificationDate: modificationDate,
-                        fileSize: Int64(uncompressedSize),
-                        kind: kind,
-                        isDirectory: isDir
-                    )
-                    items.append(item)
+                    // Clean path: remove trailing slash for logic
+                    let cleanPath = isDir ? String(filename.dropLast()) : filename
+                    entries.append((cleanPath, isDir, date, Int64(uncompressedSize)))
                 }
             }
-            
         } catch {
-            print("Native Zip Parsing Failed: \(error)")
+            print("Zip Parse Error: \(error)")
         }
         
-        // Apply Sort
+        let rootItems = buildTree(from: entries)
+        
+        // Smart Unwrapping: If only one root folder, show its contents to match Finder behavior
+        if rootItems.count == 1, let root = rootItems.first, root.isDirectory, let children = root.children {
+            return children
+        }
+        
+        return rootItems
+    }
+    
+    private func buildTree(from entries: [(path: String, isDir: Bool, date: Date, size: Int64)]) -> [FileItem] {
+        class Node {
+            var name: String
+            var children: [String: Node] = [:]
+            var isDir: Bool = true
+            var date: Date = Date()
+            var size: Int64 = 0
+            
+            init(name: String) { self.name = name }
+            
+            // Recompute size including children
+            func calculateTotalSize() -> Int64 {
+                if !isDir { return size }
+                var total: Int64 = 0
+                for child in children.values {
+                    total += child.calculateTotalSize()
+                }
+                self.size = total
+                return total
+            }
+            
+            func toFileItem(fullPath: String) -> FileItem {
+                let dummyURL = URL(fileURLWithPath: fullPath.isEmpty ? "/" : "/" + fullPath)
+                var kind = isDir ? "Folder" : "ZIP Item"
+                if !isDir {
+                   if let type = UTType(filenameExtension: dummyURL.pathExtension) {
+                       kind = type.localizedDescription ?? type.identifier
+                   } else {
+                        kind = dummyURL.pathExtension.isEmpty ? "Document" : "\(dummyURL.pathExtension.uppercased()) file"
+                   }
+                }
+                
+                let childItems = children.isEmpty && !isDir ? nil : children.values.map { $0.toFileItem(fullPath: (fullPath.isEmpty ? "" : fullPath + "/") + $0.name) }
+                // Sort children
+                let sortedChildren = childItems?.sorted(using: [KeyPathComparator(\.url.lastPathComponent)])
+                
+                return FileItem(
+                    id: dummyURL,
+                    url: dummyURL,
+                    children: sortedChildren,
+                    modificationDate: date,
+                    fileSize: size,
+                    kind: kind,
+                    isDirectory: isDir
+                )
+            }
+        }
+        
+        let root = Node(name: "")
+        
+        for entry in entries {
+            let parts = entry.path.components(separatedBy: "/")
+            var current = root
+            
+            for (index, part) in parts.enumerated() {
+                if current.children[part] == nil {
+                    current.children[part] = Node(name: part)
+                }
+                current = current.children[part]!
+                
+                if index == parts.count - 1 {
+                    current.isDir = entry.isDir
+                    current.date = entry.date
+                    current.size = entry.size
+                }
+            }
+        }
+        
+        // Calculate deep sizes for all top-level nodes (and recursively)
+        for child in root.children.values {
+            _ = child.calculateTotalSize()
+        }
+        
+        // Convert to Items
+        let items = root.children.values.map { $0.toFileItem(fullPath: $0.name) }
         return sortItems(items)
     }
     
