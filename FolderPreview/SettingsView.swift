@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("showHiddenFiles", store: UserDefaults(suiteName: appGroup)) private var showHiddenFiles: Bool = false
     @AppStorage("keepFoldersOnTop", store: UserDefaults(suiteName: appGroup)) private var keepFoldersOnTop: Bool = true
     @AppStorage("expandChildFolders", store: UserDefaults(suiteName: appGroup)) private var expandChildFolders: Bool = true
+    @AppStorage("limitFolderDepth", store: UserDefaults(suiteName: appGroup)) private var limitFolderDepth: Bool = true
     @AppStorage("folderDepth", store: UserDefaults(suiteName: appGroup)) private var folderDepth: Int = 7
     
     @State private var isInstructionsExpanded: Bool = false
@@ -81,14 +82,20 @@ struct SettingsView: View {
                 Toggle("Keep folders on top", isOn: $keepFoldersOnTop)
                 Toggle("Expand all child folders", isOn: $expandChildFolders)
                 
-                HStack {
-                    Text("Folder depth")
-                    Spacer()
-                    Stepper("", value: $folderDepth, in: 1...20)
-                    Text("\(folderDepth)")
-                        .frame(width: 20)
+                
+                Toggle("Limit folder depth", isOn: $limitFolderDepth)
+                
+                if limitFolderDepth {
+                    HStack {
+                        Text("Max Depth")
+                        Spacer()
+                        Stepper("", value: $folderDepth, in: 1...20)
+                        Text("\(folderDepth)")
+                            .frame(width: 20)
+                    }
                 }
-                Text("For folders with deep hierarchy, it takes much longer before result shown. Therefore the extension imposes a depth limit.")
+                
+                Text(limitFolderDepth ? "For folders with deep hierarchy, it takes much longer before result shown. Therefore the extension imposes a depth limit." : "Warning: Disabling depth limit may cause performance issues or hang the preview for very deep folder structures.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

@@ -99,6 +99,7 @@ struct FolderPreviewView: View {
     @AppStorage("showHiddenFiles", store: UserDefaults(suiteName: appGroup)) private var showHiddenFiles: Bool = false
     @AppStorage("keepFoldersOnTop", store: UserDefaults(suiteName: appGroup)) private var keepFoldersOnTop: Bool = true
     @AppStorage("expandChildFolders", store: UserDefaults(suiteName: appGroup)) private var expandChildFolders: Bool = true
+    @AppStorage("limitFolderDepth", store: UserDefaults(suiteName: appGroup)) private var limitFolderDepth: Bool = true
     @AppStorage("folderDepth", store: UserDefaults(suiteName: appGroup)) private var folderDepth: Int = 7
     
 
@@ -527,8 +528,9 @@ struct FolderPreviewView: View {
         // Adjust depth for Smart Unwrapping
         // If there is exactly one root folder, the viewer will unwrap it (remove it),
         // effectively reducing the visible depth by 1. We compensate by increasing the limit.
-        var effectiveMaxDepth = folderDepth
-        if root.children.count == 1, let singleChild = root.children.values.first, singleChild.isDir {
+        var effectiveMaxDepth = limitFolderDepth ? folderDepth : Int.max
+        // Only boost if we are actually limiting
+        if limitFolderDepth && root.children.count == 1, let singleChild = root.children.values.first, singleChild.isDir {
             effectiveMaxDepth += 1
         }
         
@@ -662,7 +664,9 @@ struct FolderPreviewView: View {
                 }
                 
                 var children: [FileItem]? = nil
-                 if isDir && currentDepth < folderDepth {
+                 // Check depth limit
+                 let maxDepth = limitFolderDepth ? folderDepth : Int.max
+                 if isDir && currentDepth < maxDepth {
                     let childItems = fetchItems(at: fileURL, currentDepth: currentDepth + 1)
                     // Apply sort to children immediately
                     children = sortItems(childItems)
