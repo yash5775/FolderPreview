@@ -2,6 +2,7 @@
 import Cocoa
 import Quartz
 import SwiftUI
+import UniformTypeIdentifiers
 
 class PreviewViewController: NSViewController, QLPreviewingController {
 
