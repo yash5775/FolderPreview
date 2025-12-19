@@ -344,6 +344,7 @@ struct FolderPreviewView: View {
                  }
              }
         )
+        .id(rowHeight)
     }
     
 
