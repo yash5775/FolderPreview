@@ -4,6 +4,7 @@ import Quartz
 import SwiftUI
 import UniformTypeIdentifiers
 import Compression
+import Combine
 
 class PreviewViewController: NSViewController, QLPreviewingController {
 
@@ -54,10 +55,10 @@ struct ZipMetadata: Hashable {
     let sourceZipURL: URL
 }
 
-struct FileItem: Identifiable, Hashable {
+final class FileItem: Identifiable, Hashable, ObservableObject {
     let id: URL
     let url: URL
-    var children: [FileItem]?
+    @Published var children: [FileItem]?
     var icon: NSImage? = nil // Cache for Zip items or specific icons
     var zipMetadata: ZipMetadata? = nil // For extracting thumbnails
     
@@ -65,6 +66,18 @@ struct FileItem: Identifiable, Hashable {
     let fileSize: Int64?
     let kind: String
     let isDirectory: Bool
+    
+    init(id: URL, url: URL, children: [FileItem]?, icon: NSImage? = nil, zipMetadata: ZipMetadata? = nil, modificationDate: Date, fileSize: Int64?, kind: String, isDirectory: Bool) {
+        self.id = id
+        self.url = url
+        self.children = children
+        self.icon = icon
+        self.zipMetadata = zipMetadata
+        self.modificationDate = modificationDate
+        self.fileSize = fileSize
+        self.kind = kind
+        self.isDirectory = isDirectory
+    }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -102,10 +115,19 @@ struct FolderPreviewView: View {
     @AppStorage("showPathBar", store: UserDefaults(suiteName: appGroup)) private var showPathBar: Bool = true
     
     var rowHeightValue: CGFloat {
-        switch rowHeight {
-        case "small": return 22
-        case "large": return 40
-        default: return 30 // medium
+        if viewStyle == "icons" {
+            switch rowHeight {
+            case "small": return 30
+            case "large": return 45
+            default: return 37 // medium
+            }
+        } else {
+            // List View
+            switch rowHeight {
+            case "small": return 20
+            case "large": return 35
+            default: return 27 // medium
+            }
         }
     }
     
@@ -605,48 +627,41 @@ struct FolderPreviewView: View {
     }
     
     private func sortItems(_ itemsToSort: [FileItem]) -> [FileItem] {
-        var sorted = itemsToSort
-        if keepFoldersOnTop {
-            var folders = sorted.filter { $0.isDirectory }
-            var files = sorted.filter { !$0.isDirectory }
+        // Recursive In-Place Sort for Class
+        // We avoid rebuilding the tree, just re-sorting the children arrays.
+        
+        func sortList(_ list: [FileItem]) -> [FileItem] {
+            var sortedList = list
+            sortedList.sort(using: sortOrder)
             
-            folders.sort(using: sortOrder)
-            files.sort(using: sortOrder)
-            
-            // Recursively sort children of folders
-            // Note: Since FileItem is a struct, we need to reconstruct if we modify children.
-            // But wait, children are part of FileItem. 
-            // We already sorted children during fetch if we use recursion there.
-            // But if we change sort order effectively later, we need to update children too.
-            // This is complex for structs. 
-            // For now, let's assume fetch sorts initially. 
-            // Re-sorting deep structure on column click is expensive but necessary for consistency.
-            // Let's implement deep sort.
-            
-            folders = folders.map { folder in
-                var newFolder = folder
-                if let kids = folder.children {
-                    newFolder.children = sortItems(kids)
-                }
-                return newFolder
+            if keepFoldersOnTop {
+                 let folders = sortedList.filter { $0.isDirectory }
+                 let files = sortedList.filter { !$0.isDirectory }
+                 return folders + files
             }
-            
-            return folders + files
-        } else {
-            // Standard sort
-            sorted.sort(using: sortOrder)
-             
-             // Deep sort
-             sorted = sorted.map { item in
-                var newItem = item
-                if let kids = item.children {
-                    newItem.children = sortItems(kids)
-                }
-                return newItem
-            }
-            
-            return sorted
+            return sortedList
         }
+
+        let sortedRoots = sortList(itemsToSort)
+        
+        // Helper to sort children recursively
+        func recursiveSort(_ items: [FileItem]) {
+            for item in items {
+                if let kids = item.children {
+                    // Sort the children in place (re-assigning reference)
+                    let sortedKids = sortList(kids)
+                    item.children = sortedKids 
+                    
+                    // Recurse
+                    if item.isDirectory {
+                         recursiveSort(sortedKids)
+                    }
+                }
+            }
+        }
+        
+        recursiveSort(sortedRoots)
+        return sortedRoots
     }
     
     private func fetchItems(at url: URL, currentDepth: Int) -> [FileItem] {
@@ -700,7 +715,8 @@ struct FolderPreviewView: View {
                     id: fileURL,
                     url: fileURL,
                     children: children,
-                    icon: nil, // Let ThumbnailView load system icon/preview
+                    icon: nil, 
+                    zipMetadata: nil, // Add missing argument
                     modificationDate: date,
                     fileSize: size,
                     kind: kind,
