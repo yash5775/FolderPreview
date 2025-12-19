@@ -780,11 +780,6 @@ struct ThumbnailView: View {
         }
         
         // Existing logic for normal files
-        if let icon = item.icon {
-            // We have an explicit icon (maybe system default).
-            // If it looks like an image, we still want QL to try generating a thumbnail 
-            // because system icon is just a generic PNG file icon.
-        }
         // ... (rest of existing QL/path logic)
         let imageExtensions = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "heic", "webp", "svg", "pdf"]
         if imageExtensions.contains(item.url.pathExtension.lowercased()) {
