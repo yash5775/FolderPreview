@@ -6,7 +6,6 @@
 	<array>
 		<string>group.com.example.FolderPreview</string>
 	</array>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
+
 </dict>
 </plist>
