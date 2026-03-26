@@ -445,7 +445,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FolderView/Info.plist;
+				INFOPLIST_FILE = FolderPreviewExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FolderView;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -476,7 +476,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FolderView/Info.plist;
+				INFOPLIST_FILE = FolderPreviewExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FolderView;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
