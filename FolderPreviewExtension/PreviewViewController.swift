@@ -45,6 +45,22 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         ])
     }
 
+    func preparePreviewOfSearchableItem(withIdentifier identifier: String, queryString: String?) async throws {
+        // This is called when Quick Look is asked to preview a Spotlight item.
+        // Since we don't index items in Spotlight yet, we can show a placeholder or
+        // try to resolve the identifier if it's a file path.
+        
+        // For now, let's just show the main view with a dummy URL or handle it gracefully.
+        // If the identifier is a path, we can use it.
+        if let url = URL(string: identifier), url.isFileURL {
+            try await preparePreviewOfFile(at: url)
+        } else {
+            // Fallback or show "preview not available for spotlight item"
+            // For now, let's just throw an error so it doesn't show "Extension not found"
+            throw NSError(domain: "com.example.FolderPreview", code: 2, userInfo: [NSLocalizedDescriptionKey: "Spotlight Preview Not Supported"])
+        }
+    }
+
 }
 
 struct ZipMetadata: Hashable {
