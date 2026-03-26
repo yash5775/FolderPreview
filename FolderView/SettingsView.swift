@@ -3,7 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     // MUST MATCH THE APP GROUP NAME in Xcode -> Signing & Capabilities
-    static let appGroup = "group.com.example.FolderPreview"
+    static let appGroup = "group.App.FolderView"
     
     @AppStorage("viewStyle", store: UserDefaults(suiteName: appGroup)) private var viewStyle: String = "list"
     @AppStorage("rowHeight", store: UserDefaults(suiteName: appGroup)) private var rowHeight: String = "small"

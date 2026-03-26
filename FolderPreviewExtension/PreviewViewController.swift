@@ -17,17 +17,17 @@ class PreviewViewController: NSViewController, QLPreviewingController {
         // Do any additional setup after loading the view.
     }
 
-    func preparePreviewOfFile(at url: URL) async throws {
+    @objc func preparePreviewOfFile(at url: URL, completionHandler: @escaping (Error?) -> Void) {
         // Check if user has disabled the extension via Settings
-        let appGroup = "group.com.example.FolderPreview"
+        let appGroup = "group.App.FolderView"
         if let defaults = UserDefaults(suiteName: appGroup) {
             // Default to true if not set
             let isEnabled = defaults.object(forKey: "isExtensionEnabled") as? Bool ?? true
             if !isEnabled {
                 // User disabled the extension.
-                // We throw an error to tell Quick Look we cannot handle this request.
-                // This should trigger the system to fall back to the default preview (Folder Icon).
-                throw NSError(domain: "com.example.FolderPreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Extension Disabled"])
+                let error = NSError(domain: "com.example.FolderPreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Extension Disabled"])
+                completionHandler(error)
+                return
             }
         }
 
@@ -43,21 +43,19 @@ class PreviewViewController: NSViewController, QLPreviewingController {
             hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
+        
+        completionHandler(nil)
     }
 
-    func preparePreviewOfSearchableItem(withIdentifier identifier: String, queryString: String?) async throws {
+    @objc func preparePreviewOfSearchableItem(identifier: String, queryString: String?, completionHandler: @escaping (Error?) -> Void) {
         // This is called when Quick Look is asked to preview a Spotlight item.
-        // Since we don't index items in Spotlight yet, we can show a placeholder or
-        // try to resolve the identifier if it's a file path.
-        
-        // For now, let's just show the main view with a dummy URL or handle it gracefully.
         // If the identifier is a path, we can use it.
         if let url = URL(string: identifier), url.isFileURL {
-            try await preparePreviewOfFile(at: url)
+            preparePreviewOfFile(at: url, completionHandler: completionHandler)
         } else {
             // Fallback or show "preview not available for spotlight item"
-            // For now, let's just throw an error so it doesn't show "Extension not found"
-            throw NSError(domain: "com.example.FolderPreview", code: 2, userInfo: [NSLocalizedDescriptionKey: "Spotlight Preview Not Supported"])
+            let error = NSError(domain: "com.example.FolderPreview", code: 2, userInfo: [NSLocalizedDescriptionKey: "Spotlight Preview Not Supported"])
+            completionHandler(error)
         }
     }
 
@@ -124,7 +122,7 @@ struct FolderPreviewView: View {
     let folderURL: URL
     
     // MUST MATCH THE APP GROUP NAME
-    static let appGroup = "group.com.example.FolderPreview"
+    static let appGroup = "group.App.FolderView"
     
     @AppStorage("viewStyle", store: UserDefaults(suiteName: appGroup)) private var viewStyle: String = "list"
     @AppStorage("rowHeight", store: UserDefaults(suiteName: appGroup)) private var rowHeight: String = "small"
