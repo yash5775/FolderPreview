@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		D3CACD042EF472D5002E2E7A /* Quartz.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D3CACD032EF472D5002E2E7A /* Quartz.framework */; };
-		D3CACD102EF472D5002E2E7A /* FolderPreviewExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D3CACD012EF472D5002E2E7A /* FolderPreviewExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D3CACD102EF472D5002E2E7A /* FolderViewExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D3CACD012EF472D5002E2E7A /* FolderViewExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,7 +28,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				D3CACD102EF472D5002E2E7A /* FolderPreviewExtension.appex in Embed Foundation Extensions */,
+				D3CACD102EF472D5002E2E7A /* FolderViewExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -36,18 +36,18 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		D3CACCEF2EF46D93002E2E7A /* FolderPreview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FolderPreview.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D3CACD012EF472D5002E2E7A /* FolderPreviewExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FolderPreviewExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3CACCEF2EF46D93002E2E7A /* FolderView.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FolderView.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3CACD012EF472D5002E2E7A /* FolderViewExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FolderViewExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D3CACD032EF472D5002E2E7A /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D3CACD112EF472D5002E2E7A /* Exceptions for "FolderPreviewExtension" folder in "FolderPreviewExtension" target */ = {
+		D3CACD112EF472D5002E2E7A /* Exceptions for "FolderPreviewExtension" folder in "FolderViewExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = D3CACD002EF472D5002E2E7A /* FolderPreviewExtension */;
+			target = D3CACD002EF472D5002E2E7A /* FolderViewExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -60,7 +60,7 @@
 		D3CACD052EF472D5002E2E7A /* FolderPreviewExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				D3CACD112EF472D5002E2E7A /* Exceptions for "FolderPreviewExtension" folder in "FolderPreviewExtension" target */,
+				D3CACD112EF472D5002E2E7A /* Exceptions for "FolderPreviewExtension" folder in "FolderViewExtension" target */,
 			);
 			path = FolderPreviewExtension;
 			sourceTree = "<group>";
@@ -99,8 +99,8 @@
 		D3CACCF02EF46D93002E2E7A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D3CACCEF2EF46D93002E2E7A /* FolderPreview.app */,
-				D3CACD012EF472D5002E2E7A /* FolderPreviewExtension.appex */,
+				D3CACCEF2EF46D93002E2E7A /* FolderView.app */,
+				D3CACD012EF472D5002E2E7A /* FolderViewExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,9 +116,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		D3CACCEE2EF46D93002E2E7A /* FolderPreview */ = {
+		D3CACCEE2EF46D93002E2E7A /* FolderView */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D3CACCFA2EF46D94002E2E7A /* Build configuration list for PBXNativeTarget "FolderPreview" */;
+			buildConfigurationList = D3CACCFA2EF46D94002E2E7A /* Build configuration list for PBXNativeTarget "FolderView" */;
 			buildPhases = (
 				D3CACCEB2EF46D93002E2E7A /* Sources */,
 				D3CACCEC2EF46D93002E2E7A /* Frameworks */,
@@ -133,16 +133,16 @@
 			fileSystemSynchronizedGroups = (
 				D3CACCF12EF46D93002E2E7A /* FolderPreview */,
 			);
-			name = FolderPreview;
+			name = FolderView;
 			packageProductDependencies = (
 			);
 			productName = FolderPreview;
-			productReference = D3CACCEF2EF46D93002E2E7A /* FolderPreview.app */;
+			productReference = D3CACCEF2EF46D93002E2E7A /* FolderView.app */;
 			productType = "com.apple.product-type.application";
 		};
-		D3CACD002EF472D5002E2E7A /* FolderPreviewExtension */ = {
+		D3CACD002EF472D5002E2E7A /* FolderViewExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D3CACD122EF472D5002E2E7A /* Build configuration list for PBXNativeTarget "FolderPreviewExtension" */;
+			buildConfigurationList = D3CACD122EF472D5002E2E7A /* Build configuration list for PBXNativeTarget "FolderViewExtension" */;
 			buildPhases = (
 				D3CACCFD2EF472D5002E2E7A /* Sources */,
 				D3CACCFE2EF472D5002E2E7A /* Frameworks */,
@@ -155,11 +155,11 @@
 			fileSystemSynchronizedGroups = (
 				D3CACD052EF472D5002E2E7A /* FolderPreviewExtension */,
 			);
-			name = FolderPreviewExtension;
+			name = FolderViewExtension;
 			packageProductDependencies = (
 			);
 			productName = FolderPreviewExtension;
-			productReference = D3CACD012EF472D5002E2E7A /* FolderPreviewExtension.appex */;
+			productReference = D3CACD012EF472D5002E2E7A /* FolderViewExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -180,7 +180,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D3CACCEA2EF46D93002E2E7A /* Build configuration list for PBXProject "FolderPreview" */;
+			buildConfigurationList = D3CACCEA2EF46D93002E2E7A /* Build configuration list for PBXProject "FolderView" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -194,8 +194,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				D3CACCEE2EF46D93002E2E7A /* FolderPreview */,
-				D3CACD002EF472D5002E2E7A /* FolderPreviewExtension */,
+				D3CACCEE2EF46D93002E2E7A /* FolderView */,
+				D3CACD002EF472D5002E2E7A /* FolderViewExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -237,7 +237,7 @@
 /* Begin PBXTargetDependency section */
 		D3CACD0F2EF472D5002E2E7A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = D3CACD002EF472D5002E2E7A /* FolderPreviewExtension */;
+			target = D3CACD002EF472D5002E2E7A /* FolderViewExtension */;
 			targetProxy = D3CACD0E2EF472D5002E2E7A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -366,6 +366,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FolderPreview/FolderPreview.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -375,13 +376,17 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FolderView;
+				"INFOPLIST_KEY_CFBundleDisplayName[sdk=macosx*]" = FolderView;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = App.FolderPreview;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = App.FolderView.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -398,6 +403,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FolderPreview/FolderPreview.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -407,13 +413,17 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FolderView;
+				"INFOPLIST_KEY_CFBundleDisplayName[sdk=macosx*]" = FolderView;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = App.FolderPreview;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = App.FolderView.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -435,8 +445,8 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FolderPreviewExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FolderPreviewExtension;
+				INFOPLIST_FILE = FolderView/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FolderView;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -444,7 +454,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = App.FolderPreview.FolderPreviewExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = App.FolderView.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
@@ -466,8 +476,8 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FolderPreviewExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FolderPreviewExtension;
+				INFOPLIST_FILE = FolderView/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FolderView;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -475,7 +485,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = App.FolderPreview.FolderPreviewExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = App.FolderView.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
@@ -490,7 +500,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D3CACCEA2EF46D93002E2E7A /* Build configuration list for PBXProject "FolderPreview" */ = {
+		D3CACCEA2EF46D93002E2E7A /* Build configuration list for PBXProject "FolderView" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D3CACCF82EF46D94002E2E7A /* Debug */,
@@ -499,7 +509,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D3CACCFA2EF46D94002E2E7A /* Build configuration list for PBXNativeTarget "FolderPreview" */ = {
+		D3CACCFA2EF46D94002E2E7A /* Build configuration list for PBXNativeTarget "FolderView" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D3CACCFB2EF46D94002E2E7A /* Debug */,
@@ -508,7 +518,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D3CACD122EF472D5002E2E7A /* Build configuration list for PBXNativeTarget "FolderPreviewExtension" */ = {
+		D3CACD122EF472D5002E2E7A /* Build configuration list for PBXNativeTarget "FolderViewExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D3CACD132EF472D5002E2E7A /* Debug */,
